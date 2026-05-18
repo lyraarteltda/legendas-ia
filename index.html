@@ -82,25 +82,93 @@
     </header>
 
     <main class="app-main">
-      <!-- ========================================
-           YOUR APPLICATION CONTENT GOES HERE
-           Replace this section with the actual tool UI.
-           ======================================== -->
-      <div class="placeholder-content">
-        <div class="card">
-          <h2>Bem-vindo, <span id="user-name">Maestro</span>!</h2>
-          <p>Esta ferramenta está pronta para uso. Comece explorando as funcionalidades abaixo.</p>
-        </div>
+      <div class="card welcome-card">
+        <h2>Olá, <span id="user-name">Maestro</span>!</h2>
+        <p>Crie legendas profissionais para suas redes sociais em segundos com IA.</p>
+      </div>
 
-        <div class="card">
-          <h3>Funcionalidade Principal</h3>
-          <p>Implemente a funcionalidade principal da ferramenta aqui.</p>
-          <div id="main-feature" class="feature-area">
-            <!-- Main feature UI -->
+      <div class="card generator-card">
+        <h3>Gerar Legendas</h3>
+
+        <div class="gen-grid">
+          <div class="form-group">
+            <label for="gen-platform">Plataforma</label>
+            <div class="chip-group" id="gen-platform">
+              <button type="button" class="chip active" data-value="instagram">Instagram</button>
+              <button type="button" class="chip" data-value="linkedin">LinkedIn</button>
+              <button type="button" class="chip" data-value="twitter">Twitter/X</button>
+              <button type="button" class="chip" data-value="facebook">Facebook</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="gen-tone">Tom da legenda</label>
+            <div class="chip-group" id="gen-tone">
+              <button type="button" class="chip active" data-value="profissional">Profissional</button>
+              <button type="button" class="chip" data-value="descontrado">Descontraído</button>
+              <button type="button" class="chip" data-value="inspirador">Inspirador</button>
+              <button type="button" class="chip" data-value="vendedor">Vendedor</button>
+              <button type="button" class="chip" data-value="educativo">Educativo</button>
+            </div>
           </div>
         </div>
+
+        <div class="form-group">
+          <label for="gen-topic">Assunto ou nicho</label>
+          <input type="text" id="gen-topic" placeholder="Ex: marketing digital, nutrição, moda sustentável..." maxlength="200">
+        </div>
+
+        <div class="form-group">
+          <label for="gen-context">Contexto adicional <span class="label-hint">(opcional)</span></label>
+          <textarea id="gen-context" placeholder="Descreva o post, produto, serviço ou ideia que quer divulgar..." rows="3" maxlength="1000"></textarea>
+        </div>
+
+        <div class="gen-options">
+          <div class="form-group form-group-inline">
+            <label for="gen-count">Quantidade</label>
+            <select id="gen-count">
+              <option value="1">1 legenda</option>
+              <option value="3" selected>3 legendas</option>
+              <option value="5">5 legendas</option>
+            </select>
+          </div>
+          <div class="form-group form-group-inline">
+            <label for="gen-hashtags">Hashtags</label>
+            <select id="gen-hashtags">
+              <option value="sim" selected>Com hashtags</option>
+              <option value="nao">Sem hashtags</option>
+            </select>
+          </div>
+          <div class="form-group form-group-inline">
+            <label for="gen-emoji">Emojis</label>
+            <select id="gen-emoji">
+              <option value="sim" selected>Com emojis</option>
+              <option value="nao">Sem emojis</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="button" id="gen-submit" class="btn-primary">
+          <span class="btn-text">Gerar legendas</span>
+          <span class="btn-loading" style="display:none;">Gerando com IA...</span>
+        </button>
+
+        <div id="gen-no-key" class="info-banner" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>Configure sua chave de API para gerar legendas.</span>
+          <button type="button" id="gen-setup-key" class="btn-link">Configurar agora</button>
+        </div>
+
+        <p id="gen-error" class="error-message" style="display:none;"></p>
       </div>
-      <!-- ======================================== -->
+
+      <div id="results-section" class="results-section" style="display:none;">
+        <div class="results-header">
+          <h3>Suas Legendas</h3>
+          <button type="button" id="copy-all-btn" class="btn-secondary btn-sm">Copiar todas</button>
+        </div>
+        <div id="results-list" class="results-list"></div>
+      </div>
     </main>
 
     <footer class="app-footer">
