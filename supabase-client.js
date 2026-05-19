@@ -21,12 +21,12 @@ function getSupabaseClient() {
     _url: SUPABASE_CONFIG.url,
     _key: SUPABASE_CONFIG.anonKey,
 
-    _headers() {
+    _headers(prefer) {
       return {
         'apikey': this._key,
         'Authorization': `Bearer ${this._key}`,
         'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Prefer': prefer || 'return=representation'
       };
     },
 
@@ -63,12 +63,11 @@ function getSupabaseClient() {
           try {
             const resp = await fetch(`${self._url}/rest/v1/${table}`, {
               method: 'POST',
-              headers: self._headers(),
+              headers: self._headers('return=minimal'),
               body: JSON.stringify(data)
             });
             if (!resp.ok) return { data: null, error: { message: await resp.text() } };
-            const result = await resp.json();
-            return { data: result, error: null };
+            return { data: Array.isArray(data) ? data : [data], error: null };
           } catch (e) {
             return { data: null, error: { message: e.message } };
           }

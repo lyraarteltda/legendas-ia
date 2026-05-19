@@ -124,7 +124,7 @@ exports.handler = async function(event) {
 
   var zapiBody = JSON.stringify({
     phone: whatsappPhone,
-    message: '🔐 *Maestria da IA — Código de Verificação*\n\nSeu código: *' + code + '*\n\nEle expira em 10 minutos.\n\nSe você não solicitou este código, ignore esta mensagem.'
+    message: '🔐 *Maestros da IA — Código de Verificação*\n\nSeu código: *' + code + '*\n\nEle expira em 10 minutos.\n\nSe você não solicitou este código, ignore esta mensagem.'
   });
 
   try {
@@ -137,12 +137,11 @@ exports.handler = async function(event) {
     }, zapiBody);
   } catch (err) {
     return {
-      statusCode: 200,
+      statusCode: 502,
       headers: headers,
       body: JSON.stringify({
         sent: false,
-        fallback: true,
-        message: 'Não foi possível enviar o OTP via WhatsApp. Verificação simplificada ativada.'
+        error: 'Não foi possível enviar o código via WhatsApp. Tente novamente em alguns instantes.'
       })
     };
   }

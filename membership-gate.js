@@ -1,12 +1,12 @@
 /**
- * Membership Gate — verifies user is a paying Maestria da IA member.
- * Supports WhatsApp OTP flow with fallback to simple email+phone check.
- * Periodic re-validation every 4 hours.
+ * Membership Gate — BACKEND-ONLY verification.
+ * All membership checks go through server-side Netlify functions.
+ * The client NEVER queries comunidade_purchases directly.
+ * localStorage is a display cache only — every page load revalidates server-side.
  */
 const MembershipGate = (function() {
   const SESSION_KEY = 'maestria_member_session';
   const SESSION_DURATION = 24 * 60 * 60 * 1000;
-  const REVALIDATION_INTERVAL = 4 * 60 * 60 * 1000;
 
   const LOGIN_RATE_KEY = 'maestria_login_attempts';
   const LOGIN_RATE_WINDOW = 15 * 60 * 1000;
@@ -36,8 +36,7 @@ const MembershipGate = (function() {
       email: member.buyer_email,
       name: member.buyer_name,
       phone: member.buyer_phone,
-      timestamp: Date.now(),
-      lastValidation: Date.now()
+      timestamp: Date.now()
     }));
   }
 
@@ -71,67 +70,33 @@ const MembershipGate = (function() {
     } catch {}
   }
 
-  async function verifyMembership(email, phone) {
-    const sb = window.AppSupabase.getClient();
-    const normalizedPhone = normalizePhone(phone);
-
-    const { data, error } = await sb
-      .from('comunidade_purchases')
-      .select('buyer_name, buyer_email, buyer_phone, product_name, payment_status')
-      .eq('payment_status', 'approved')
-      .eq('buyer_email', email.toLowerCase().trim())
-      .limit(1)
-      .single();
-
-    if (error) {
-      if (error.message && error.message.includes('rows')) {
-        return { verified: false, reason: 'not_found' };
-      }
-      return { verified: false, reason: 'error', message: error.message };
+  async function verifyMembershipBackend(email, phone) {
+    try {
+      var resp = await fetch('/.netlify/functions/verify-membership', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, phone: phone || undefined })
+      });
+      return await resp.json();
+    } catch {
+      return { verified: false, reason: 'error' };
     }
-
-    if (!data) {
-      return { verified: false, reason: 'not_found' };
-    }
-
-    const dbPhone = normalizePhone(data.buyer_phone || '');
-    if (dbPhone && normalizedPhone) {
-      const phoneMatch = dbPhone.includes(normalizedPhone) || normalizedPhone.includes(dbPhone);
-      if (!phoneMatch) {
-        return { verified: false, reason: 'phone_mismatch' };
-      }
-    }
-
-    return { verified: true, member: data };
   }
 
   async function revalidateSession() {
     const session = getStoredSession();
-    if (!session) return;
+    if (!session) return false;
 
-    var lastVal = session.lastValidation || session.timestamp;
-    if (Date.now() - lastVal < REVALIDATION_INTERVAL) return;
+    var result = await verifyMembershipBackend(session.email);
 
-    try {
-      const sb = window.AppSupabase.getClient();
-      const { data } = await sb
-        .from('comunidade_purchases')
-        .select('payment_status')
-        .eq('buyer_email', session.email)
-        .eq('payment_status', 'approved')
-        .limit(1)
-        .single();
+    if (!result.verified) {
+      clearSession();
+      showScreen('gate-screen');
+      return false;
+    }
 
-      if (!data) {
-        clearSession();
-        showScreen('gate-screen');
-        return;
-      }
-
-      var updated = JSON.parse(localStorage.getItem(SESSION_KEY));
-      updated.lastValidation = Date.now();
-      localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-    } catch {}
+    storeSession(result.member);
+    return true;
   }
 
   async function sendOTP(email, phone) {
@@ -143,7 +108,7 @@ const MembershipGate = (function() {
       });
       return await resp.json();
     } catch {
-      return { sent: false, fallback: true };
+      return { sent: false, error: 'Erro de conexão. Tente novamente.' };
     }
   }
 
@@ -164,6 +129,9 @@ const MembershipGate = (function() {
     document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
     var target = document.getElementById(screenId);
     if (target) target.classList.add('active');
+    if (screenId === 'app-screen') {
+      document.dispatchEvent(new Event('maestria:app-ready'));
+    }
   }
 
   function getErrorMessage(reason) {
@@ -261,18 +229,21 @@ const MembershipGate = (function() {
     }
   }
 
-  function init() {
+  async function init() {
     var session = getStoredSession();
     if (session) {
       var nameEl = document.getElementById('user-name');
       if (nameEl) nameEl.textContent = session.name || 'Maestro';
-      showScreen('key-screen');
-      if (window.ApiKeyManager) {
-        var hasKeys = window.ApiKeyManager.hasRequiredKeys();
-        if (hasKeys) showScreen('app-screen');
+
+      var valid = await revalidateSession();
+      if (valid) {
+        showScreen('key-screen');
+        if (window.ApiKeyManager) {
+          var hasKeys = window.ApiKeyManager.hasRequiredKeys();
+          if (hasKeys) showScreen('app-screen');
+        }
+        return;
       }
-      revalidateSession();
-      return;
     }
 
     showScreen('gate-screen');
@@ -304,31 +275,17 @@ const MembershipGate = (function() {
       btnLoading.style.display = 'inline';
 
       try {
-        var result = await verifyMembership(emailInput.value, phoneInput.value);
+        _pendingEmail = emailInput.value.toLowerCase().trim();
+        _pendingPhone = normalizePhone(phoneInput.value);
 
-        if (result.verified) {
-          _pendingEmail = emailInput.value.toLowerCase().trim();
-          _pendingPhone = normalizePhone(phoneInput.value);
+        var otpResult = await sendOTP(_pendingEmail, _pendingPhone);
 
-          var otpResult = await sendOTP(_pendingEmail, _pendingPhone);
-
-          if (otpResult.sent) {
-            showScreen('otp-screen');
-            var otpInput = document.getElementById('otp-code');
-            if (otpInput) { otpInput.value = ''; otpInput.focus(); }
-          } else if (otpResult.fallback) {
-            console.warn('OTP send failed — using fallback direct verification');
-            storeSession(result.member);
-            var nameEl = document.getElementById('user-name');
-            if (nameEl) nameEl.textContent = result.member.buyer_name || 'Maestro';
-            showScreen('key-screen');
-            if (window.ApiKeyManager) window.ApiKeyManager.renderInputs();
-          } else {
-            errorEl.textContent = otpResult.error || 'Erro ao enviar código. Tente novamente.';
-            errorEl.style.display = 'block';
-          }
+        if (otpResult.sent) {
+          showScreen('otp-screen');
+          var otpInput = document.getElementById('otp-code');
+          if (otpInput) { otpInput.value = ''; otpInput.focus(); }
         } else {
-          errorEl.textContent = getErrorMessage(result.reason);
+          errorEl.textContent = otpResult.error || 'Erro ao enviar código. Tente novamente.';
           errorEl.style.display = 'block';
         }
       } catch (err) {
@@ -355,7 +312,6 @@ const MembershipGate = (function() {
     getSession: getStoredSession,
     clearSession: clearSession,
     showScreen: showScreen,
-    verifyMembership: verifyMembership,
     revalidateSession: revalidateSession
   };
 })();

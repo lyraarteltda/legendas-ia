@@ -294,11 +294,18 @@ const App = (function() {
   return { init: init };
 })();
 
-document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(function() {
+(function() {
+  var _appInitialized = false;
+  function tryAppInit() {
+    if (_appInitialized) return;
     var session = MembershipGate.getSession();
     if (session) {
+      _appInitialized = true;
       App.init();
     }
-  }, 100);
-});
+  }
+  document.addEventListener('maestria:app-ready', tryAppInit);
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(tryAppInit, 150);
+  });
+})();
